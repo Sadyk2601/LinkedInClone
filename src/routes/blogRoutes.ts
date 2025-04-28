@@ -19,7 +19,7 @@ const router = Router();
 router.post("/create", authMiddleware, createBlog);
 router.get("/get-my-blogs", authMiddleware, getMyBlogs);
 router.get("/get-my-joined-blogs", authMiddleware, getMyJoinedBlogs as any);
-router.get("/get-blog-info/:id", authMiddleware, getBlogInfo as any);
+router.get("/get-blog-info/:blog_id", authMiddleware, getBlogInfo);
 router.post("/update", authMiddleware, updateBlog as any);
 router.delete("/delete/:id", authMiddleware, deleteBlog as any);
 router.get("/search", authMiddleware, searchBlogs);

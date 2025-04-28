@@ -13,7 +13,10 @@ export const createPost = async (
     const userId = req.userId;
 
     const newPost = await pool.query(
-      "INSERT INTO posts (title, content, blog_id, author_id) VALUES ($1, $2, $3, $4) RETURNING *",
+      `INSERT INTO posts (title, content, blog_id, author_id, views, created_at, updated_at)
+  VALUES ($1, $2, $3, $4, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  RETURNING *;
+  `,
       [title, content, blog_id, userId]
     );
 
@@ -58,6 +61,7 @@ export const getPostById = async (
     const post = await pool.query("SELECT * FROM posts WHERE id = $1", [
       postId,
     ]);
+    console.log(post.rows.length);
 
     if (post.rows.length === 0) {
       res.status(404).json({ message: "Post not found" });
@@ -227,34 +231,38 @@ export const getPostsSortedByDate = async (
 };
 
 // 7. Получить комментарии для поста
-export const getCommentsForPost = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  const { postId } = req.params;
-  const { page = 1 } = req.query;
-  const limit = 5;
-  const offset = (Number(page) - 1) * limit;
-
-  try {
-    const comments = await pool.query(
-      `SELECT 
-        comments.id AS comment_id,
-        comments.content,
-        comments.created_at,
-        users.id AS user_id,
-        users.username,
-        users.email
-      FROM comments
-      JOIN users ON comments.user_id = users.id
-      WHERE comments.post_id = $1
-      ORDER BY comments.created_at ASC
-      LIMIT $2 OFFSET $3`,
-      [postId, limit, offset]
-    );
-    res.status(200).json(comments.rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error fetching comments" });
-  }
-};
+export const getCommentsForPost = async (req: Request, res: Response): Promise<void> => {
+    const { postId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 5;
+    const page = parseInt(req.query.page as string) || 1;
+    const offset = (page - 1) * limit;
+  
+    try {
+      const comments = await pool.query(
+        `SELECT 
+          comments.id AS comment_id,
+          comments.content,
+          comments.created_at,
+          users.id AS user_id,
+          users.username,
+          users.email
+        FROM comments
+        JOIN users ON comments.user_id = users.id
+        WHERE comments.post_id = $1
+        ORDER BY comments.created_at ASC
+        LIMIT $2 OFFSET $3`,
+        [postId, limit, offset]
+      );
+      
+      // Если комментариев нет
+      if (comments.rows.length === 0) {
+         res.status(404).json({ message: "No comments found for this post" });
+         return;
+      }
+  
+      res.status(200).json(comments.rows);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Error fetching comments" });
+    }
+  };

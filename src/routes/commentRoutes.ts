@@ -5,12 +5,27 @@ import {
   deleteComment,
 } from "../controllers/commentController";
 
+import {
+  authMiddleware,
+  checkCommentOwner,
+} from "../middlewares/authMiddleware";
+
 const router = Router();
 
-router.post("/create", createComment);
+router.post("/create", authMiddleware, createComment);
 
-router.post("/update/:commentId", updateComment);
+router.post(
+  "/update/:commentId",
+  authMiddleware,
+  checkCommentOwner,
+  updateComment
+);
 
-router.delete("/delete/:commentId", deleteComment);
+router.delete(
+  "/delete/:commentId",
+  authMiddleware,
+  checkCommentOwner,
+  deleteComment
+);
 
 export default router;

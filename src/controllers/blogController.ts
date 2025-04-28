@@ -59,21 +59,72 @@ export const getBlogInfo = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { blog_id } = req.params;
+    const limit = parseInt(req.query.limit as string, 10) || 5;
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const offset = (page - 1) * limit;
 
-    const result = await pool.query(
-      "SELECT id, title, description, owner_id, created_at, updated_at FROM blogs WHERE id = $1",
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      res.status(404).json({ message: "Blog not found" });
+    if (!blog_id) {
+      res.status(400).json({ message: "Blog ID is required" });
       return;
     }
 
-    res.status(200).json({ blog: result.rows[0] });
+    const result = await pool.query(
+      `SELECT 
+            blogs.id AS blog_id,
+            blogs.title AS blog_title,
+            blogs.description AS blog_description,
+            blogs.owner_id AS blog_owner_id,
+            blogs.created_at AS blog_created_at,
+            blogs.updated_at AS blog_updated_at,
+            
+            posts.id AS post_id,
+            posts.title AS post_title,
+            posts.content AS post_content,
+            posts.author_id AS post_author_id,
+            posts.views AS post_views,
+            posts.created_at AS post_created_at,
+            posts.updated_at AS post_updated_at,
+            
+            users.username AS author_name
+          FROM posts
+          INNER JOIN users ON posts.author_id = users.id
+          INNER JOIN blogs ON posts.blog_id = blogs.id
+          WHERE blogs.id = $1
+          ORDER BY posts.created_at DESC
+          LIMIT $2 OFFSET $3`,
+      [blog_id, limit, offset]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ message: "Blog not found or no posts available" });
+      return;
+    }
+
+    const blogInfo = {
+      blog_id: result.rows[0].blog_id,
+      title: result.rows[0].blog_title,
+      description: result.rows[0].blog_description,
+      owner_id: result.rows[0].blog_owner_id,
+      created_at: result.rows[0].blog_created_at,
+      updated_at: result.rows[0].blog_updated_at,
+    };
+
+    const posts = result.rows.map((row) => ({
+      id: row.post_id,
+      title: row.post_title,
+      content: row.post_content,
+      author_id: row.post_author_id,
+      views: row.post_views,
+      created_at: row.post_created_at,
+      updated_at: row.post_updated_at,
+      author_name: row.author_name,
+    }));
+
+    res.status(200).json({ blog: blogInfo, posts });
   } catch (error) {
-    res.status(500).json({ message: "Internal server error" });
+    console.error("Error in getBlogInfo:", error);
+    res.status(500).json({ message: "Error fetching blog and posts" });
   }
 };
 
@@ -214,12 +265,19 @@ export const getBlogUsers = async (req: Request, res: Response) => {
     const { blogId } = req.query;
 
     const result = await pool.query(
-      "SELECT u.username, u.email, bm.role, bm.joined_at SELECT u.username, u.email, bm.joined_at FROM blog_members bm JOIN users u ON bm.user_id = u.id WHERE bm.blog_id = 1; FROM blog_members bm JOIN users u ON bm.user_id = u.id WHERE bm.blog_id = $1;",
+      `SELECT 
+    u.username, 
+    u.email, 
+    bm.joined_at
+  FROM blog_members bm 
+  JOIN users u ON bm.user_id = u.id 
+  WHERE bm.blog_id = $1;`,
       [blogId]
     );
 
     res.status(200).json({ users: result.rows });
   } catch (error) {
+    console.log(error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
