@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import pool from "../config/db";
+import { CustomRequest } from "../types/express";
 
 export const authMiddleware = async (
-  req: Request,
+  req: CustomRequest,
   res: Response,
   next: NextFunction
 ) => {
@@ -29,6 +30,7 @@ export const authMiddleware = async (
     }
 
     req.user = user.rows[0];
+    req.userId = user.rows[0].id;
     next();
   } catch (error) {
     console.error(error);

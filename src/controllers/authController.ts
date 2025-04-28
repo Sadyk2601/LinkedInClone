@@ -11,6 +11,7 @@ interface User {
   password: string;
 }
 
+// Регистрация нового пользователя
 export const register = async (
   req: Request<{}, {}, { username: string; email: string; password: string }>,
   res: Response
@@ -18,19 +19,15 @@ export const register = async (
   try {
     const { username, email, password } = req.body;
 
-    if (!req.body) {
-      res.status(400).json({ message: "Request body is missing" });
-      return;
-    }
-
     if (!email || !password || !username) {
       res.status(400).json({
-        message: "Data are required",
+        message: "Missing required fields",
         fields: ["username", "email", "password"],
       });
       return;
     }
 
+    // Проверка, существует ли уже пользователь с таким email
     const userExists = await pool.query(
       "SELECT * FROM users WHERE email = $1",
       [email]
@@ -42,11 +39,11 @@ export const register = async (
     }
 
     // Хеширование пароля
-    const hashedPassword = (await bcrypt.hash(password, 10)) as string;
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Создание пользователя
+    // Создание нового пользователя
     const newUser = await pool.query(
-      "INSERT INTO users (username,email, password) VALUES ($1, $2, $3) RETURNING id, username, email",
+      "INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email",
       [username, email, hashedPassword]
     );
 
@@ -57,20 +54,22 @@ export const register = async (
   }
 };
 
+// Логин пользователя
 export const login = async (
   req: Request<{}, {}, { username: string; email: string; password: string }>,
   res: Response
 ): Promise<void> => {
   try {
-    const { username, email, password } = req.body;
+    const { email, password } = req.body;
 
-    // Поиск пользователя
+    // Поиск пользователя по email
     const user = await pool.query("SELECT * FROM users WHERE email = $1", [
       email,
     ]);
 
     if (user.rows.length === 0) {
       res.status(400).json({ message: "Invalid credentials" });
+      return;
     }
 
     // Проверка пароля
@@ -78,6 +77,7 @@ export const login = async (
 
     if (!isMatch) {
       res.status(400).json({ message: "Invalid credentials" });
+      return;
     }
 
     // Генерация JWT
@@ -85,12 +85,13 @@ export const login = async (
       expiresIn: parseInt(config.jwtExpire),
     });
 
-    // Установка куки
+    // Установка куки с токеном
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
     });
+
     res.json({ message: "Login successful" });
   } catch (error) {
     console.error(error);
